@@ -1,3 +1,8 @@
+// (c) by Paolo CRAVERO IK1ZYW 2016. All rights reserved.
+//
+// No responsibility is taken for any use of this code,
+// which is provided as an academic guidance to fellow builders.
+// -------------------------------------------------------------
 
 #include <Wire.h>
 #include <Button.h>
@@ -24,7 +29,7 @@ Button button1(setHoursPin, PULLUP); // Connect your button between pin 2 and GN
 Button button2(setMinutesPin, PULLUP); // Connect your button between pin 3 and GND
 
 bool blinker = 0;  // blinking control variable
-bool dpBlink = 1; // decimal point blinking control; set to 1 to make decimal points blink
+bool dpBlink = 0; // decimal point blinking control; set to 1 to make decimal points blink
 bool digitBlink = 0; // digit blinking control; set to 1 to make digits blink
 bool allOff = 2; // used for PWM brightness control
 
@@ -211,29 +216,34 @@ void loop() {
   static byte control;
   static byte inSetMode; // are we setting the time? any value > 0 defines what we are setting
 
-  // read the amount of incoming light to control display intensity via PWM
-  // LDR value increases with darkness, so the ADC output is closer to ground
-  // at maximum light intensity and highest in complete darkness.
-  sensorValue = analogRead(sensorPin);
-  if (sensorValue > 700) {
-    intensitySteps = 12;
-  } else if (sensorValue > 600) {
-    intensitySteps = 8;
-  } else if (sensorValue > 450) {
-    intensitySteps = 6;    
-  } else if (sensorValue > 300) {
-    intensitySteps = 3;
-  } else if (sensorValue > 100) {
-    intensitySteps = 2;
-  } else {
-    intensitySteps = 1;
-  }
   
 
   // things to do every second.
   if (secondElapsed == 1) {
-
+    
     secondElapsed = 0; // reset the ISR
+
+    // read the amount of incoming light to control display intensity via PWM
+    // LDR value increases with darkness, so the ADC output is closer to ground
+    // at maximum light intensity and highest in complete darkness.
+    // v20160603: - just do it once a second, not at every loop to speed up PWM
+    //            - higher brightness decreased. Previous values: 12, 8, 6, 3, 2, 1.
+    sensorValue = analogRead(sensorPin);
+    if (sensorValue > 700) {
+      intensitySteps = 12;
+    } else if (sensorValue > 600) {
+      intensitySteps = 8;
+    } else if (sensorValue > 450) {
+      intensitySteps = 6;    
+    } else if (sensorValue > 300) {
+      intensitySteps = 4;
+    } else if (sensorValue > 100) {
+      intensitySteps = 3;
+    } else {
+      intensitySteps = 2;
+    }
+
+
     
     //  ** UPDATE THE CLOCK VARIABLES
     Wire.beginTransmission(0x68);
@@ -382,15 +392,43 @@ void loop() {
         delay(100);
         
       }
-      
+
+      // not in SET mode
     } else {
-      
+
+      new_year_nr = 0x07 & seconds; // keep just values 0-7 because we're gettinga BCD value from the RTC
+      new_year_nr = new_year_nr % 4; // recycling a variable
       lowDigit = minutes;
       highDigit = hours;
-      mainDP0 = 1;  // decimal points
-      mainDP1 = 1;  // 0 is ON
-      mainDP2 = 0;  // 1 is OFF
-      mainDP3 = 1;
+  
+      // make a rolling decimal point, for some action
+      switch (new_year_nr) {
+        case 0:
+          mainDP0 = 1;  // decimal points
+          mainDP1 = 1;  // 0 is ON
+          mainDP2 = 1;  // 1 is OFF
+          mainDP3 = 0;
+          break;
+        case 1:
+          mainDP0 = 1;  // decimal points
+          mainDP1 = 1;  // 0 is ON
+          mainDP2 = 0;  // 1 is OFF
+          mainDP3 = 1;
+          break;
+        case 2:
+          mainDP0 = 1;  // decimal points
+          mainDP1 = 0;  // 0 is ON
+          mainDP2 = 1;  // 1 is OFF
+          mainDP3 = 1;
+          break;
+        case 3:
+          mainDP0 = 0;  // decimal points
+          mainDP1 = 1;  // 0 is ON
+          mainDP2 = 1;  // 1 is OFF
+          mainDP3 = 1;
+          break;
+        } // end switch
+      //}
   
       // enter SET mode
       if (button1.isPressed()) {
