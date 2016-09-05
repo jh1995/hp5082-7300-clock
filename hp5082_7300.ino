@@ -8,6 +8,9 @@
 #include <Button.h>
 
 
+// **** CONFIGURATION ****
+const bool MSDblank = 1;  // set to 1 to blank MSD when its value is zero
+
 // **** DEFINITIONS ****
 int inputs[4] = {5,9,10,11}; // Q1, Q2, Q4, Q8 outputs
 
@@ -147,6 +150,10 @@ byte increaseBCD ( byte myBCD, int lowLimit, int highLimit ) {
 // || parameters: digit position, BCD to display (0-F), decimal point status ||
 void updateDisplay(int myPosition, int myBCD, int myDP) {
 
+  if ((myPosition == 3) && (MSDblank == 1) && (myBCD == 0)) { // blank MSD if zero
+	myBCD = 11;
+  }
+  
   if ((myPosition >= 0) && (myPosition < 5)) { // just make sure we're not addressing a non-existant display
     for(int c = 0; c < 4; c++){
       if ((( digitBlink == 1 ) && ( blinker == 1 )) || ( allOff == 1) ) {
@@ -357,8 +364,7 @@ void loop() {
         if ( inSetMode > 6 ) { // we're done with setting
           inSetMode = 0;
           digitBlink = 0;
-          // TODO **** write data to the RTC
-
+          
           //attivo la comunicazione con il DS1307
           //l'indirizzo dell'RTC è 0x68
           Wire.beginTransmission(0x68);
@@ -396,7 +402,26 @@ void loop() {
       // not in SET mode
     } else {
 
-      new_year_nr = 0x07 & seconds; // keep just values 0-7 because we're gettinga BCD value from the RTC
+	// **** TODO TOTEST **** add here the drift correction routine that adds 2 seconds every day at 3 AM
+		if ( (hours == 3) && (minutes == 0) && (seconds == 0) ) { // is it 3:00:00 AM?
+          //attivo la comunicazione con il DS1307
+          //l'indirizzo dell'RTC è 0x68
+          Wire.beginTransmission(0x68);
+          //il primo byte stabilisce il registro
+          //iniziale da scivere
+          Wire.write((byte)0x00);
+          //specifico il tempo e la data
+          Wire.write((byte)0x02); //1° byte SECONDI da 0x00 a 0x59 -- skipping ahead of two seconds
+          Wire.write((byte)0x00); //2° byte MINUTI da 0x00 a 0x59
+          Wire.write((byte)0x80 | hours); //3° byte ORE da 0x00 a 0x24
+          Wire.write((byte)0x02); //4° byte GIORNO della settimana da 0x01 a 0x07
+          Wire.write(month_day); //5° byte GIORNO del mese da 0x00 a 0x31
+          Wire.write(month_nr); //6° byte MESE da 0x00 a 0x12
+          Wire.write(year_nr); //7° byte ANNO 0x00 a 0x99
+          Wire.endTransmission();
+		}
+
+	
       new_year_nr = new_year_nr % 4; // recycling a variable
       lowDigit = minutes;
       highDigit = hours;
