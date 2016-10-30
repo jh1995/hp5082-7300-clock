@@ -233,7 +233,7 @@ void setup() {
       oldDST = EEPROM.read(DSTADDRESS);
       curDST = IsDst(month_day, month_nr, year_nr);
       if ( curDST != oldDST ) {
-        if ( curDST == 0 ) { // we're in solar time, move backwards 1h
+        if ( curDST == 1 ) { // we're in solar time, move backwards 1h
           Serial.println("Switching to DST! (+1h)");
           intHours = bcdToDec(hours);
           intHours = intHours + 1;
