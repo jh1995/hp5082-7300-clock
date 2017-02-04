@@ -157,7 +157,8 @@ bool secondElapsed = 0;
 
 unsigned int intensity = 0; // PWM-like intensity control
 int intensitySteps = 10; // how many intensity levels we can do, 1 to 255
-int sensorValue = 0;  // variable to store the value coming from the sensor
+int sensorValue = 0;  // variable to store the value coming from the LDR sensor
+int sensorValuePrev = 0; // variable to store the previos value of LDR sensor
 
 byte BCD[16][4] ={ // LSB to MSB
 {0,0,0,0}, // 0
@@ -335,7 +336,8 @@ void updateDisplay(int myPosition, int myBCD, int myDP) {
     } else {
       digitalWrite(decimalPoint, myDP);
     }
-    
+
+    // send a signal to the latch so that the display loads the data
     digitalWrite(latches[myPosition], LOW);
     digitalWrite(latches[myPosition], HIGH); 
   }
@@ -421,6 +423,7 @@ void oneSecondISR() {
 void loop() {
 
   int digit;
+  static unsigned int tempOn; // temporarily keep display powered even during daytime
   int j;
   int lowDigit;
   int highDigit;
@@ -449,6 +452,7 @@ void loop() {
     // at maximum light intensity and highest in complete darkness.
     // v20160603: - just do it once a second, not at every loop to speed up PWM
     //            - higher brightness decreased. Previous values: 12, 8, 6, 3, 2, 1.
+    sensorValuePrev = sensorValue / 20; // keep 1/10th of the previous reading
     sensorValue = analogRead(sensorPin);
     if (sensorValue > 700) {
       intensitySteps = 12;
@@ -681,6 +685,26 @@ void loop() {
     
     intensity = intensity + 1;  // display intensity help variable. 
     allOff = intensity % intensitySteps; 
+
+    // turn off display if we are not setting date and time during daytime
+    // and incoming light has not changed abruptly (sign of no movement)
+    if (inSetMode == 0) {
+      if ( tempOn == 0 ){
+        if ( sensorValuePrev == ( sensorValue / 20) ) {
+          if ( hours > 0x09 && hours < 0x18 ) {
+            allOff = 1;
+            tempOn = 0;
+          }
+        } else {
+          tempOn = 1;
+        }
+      } else {
+        tempOn++;
+        if ( tempOn > 20000 ) {
+          tempOn = 0;
+        }
+      }
+    }
     
     printBCD(0, lowDigit, mainDP1, mainDP0);
     printBCD(2, highDigit, mainDP3, mainDP2);
